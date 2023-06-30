@@ -1,3 +1,8 @@
+mod capnp_command;
+
+use std::path::PathBuf;
+use std::env;
+
 use capnp::serialize;
 use capnp::schema_capnp::node;
 use capnp::schema_capnp::node::struct_;
@@ -29,9 +34,20 @@ where
     }
 }
 
-pub fn main() {
+fn main() {
+    let args_: Vec<String> = env::args().collect();
+    if args_.len() == 1 {
+        println!("Please pass target schema pathes as arguments");
+        return;
+    }
+    let args = &args_[1..];
+    let no_standard_import = false;
+    let import_paths: Vec<PathBuf> = vec![];
+    let src_prefixes: Vec<PathBuf> = vec![]; 
+    let files: Vec<PathBuf> = args.into_iter().map(|x| PathBuf::from(x)).collect();
+    let stdout = run_capnp(no_standard_import, import_paths, src_prefixes, files);
     let message = serialize::read_message(
-        ReadWrapper { inner: ::std::io::stdin() },
+        ReadWrapper { inner: stdout },
         capnp::message::ReaderOptions::new(),
     ).unwrap();
     let ctx: GeneratorContext = GeneratorContext::new(&message).unwrap();
@@ -40,7 +56,7 @@ pub fn main() {
     }
 }
 
-pub fn load(ctx: &GeneratorContext, node_id: u64) {
+fn load(ctx: &GeneratorContext, node_id: u64) {
     let node_ = ctx.node_map[&node_id];
     match node_.which().unwrap() {
         node::File(_) => {}
@@ -65,22 +81,54 @@ pub fn load(ctx: &GeneratorContext, node_id: u64) {
     }
 }
 
-pub fn handle_struct(ctx: &GeneratorContext, struct_: struct_::Reader) {
+fn handle_struct(ctx: &GeneratorContext, struct_: struct_::Reader) {
+    println!("struct detected");
     // 
 }
 
-pub fn handle_interface(ctx: &GeneratorContext, interface_: interface::Reader) {
+fn handle_interface(ctx: &GeneratorContext, interface_: interface::Reader) {
+    println!("interface detected");
     // 
 }
 
-pub fn handle_const(ctx: &GeneratorContext, const_: const_::Reader) {
+fn handle_const(ctx: &GeneratorContext, const_: const_::Reader) {
+    println!("const detected");
     // 
 }
 
-pub fn handle_enum(ctx: &GeneratorContext, enum_: enum_::Reader) {
+fn handle_enum(ctx: &GeneratorContext, enum_: enum_::Reader) {
+    println!("enum detected");
     // 
 }
 
-pub fn handle_annotation(ctx: &GeneratorContext, annotation_: annotation::Reader) {
+fn handle_annotation(ctx: &GeneratorContext, annotation_: annotation::Reader) {
+    println!("annotation detected");
     // 
+}
+
+fn run_capnp(no_standard_import: bool, import_paths: Vec<PathBuf>, src_prefixes: Vec<PathBuf>, files: Vec<PathBuf>) -> std::process::ChildStdout {
+    let mut command = ::std::process::Command::new("capnp");
+    command.env_remove("PWD");
+    command.arg("compile").arg("-o").arg("-");
+    if no_standard_import {
+        command.arg("--no-standard-import");
+    }
+
+    for import_path in import_paths {
+        command.arg(&format!("--import-path={}", import_path.display()));
+    }
+
+    for src_prefix in src_prefixes {
+        command.arg(&format!("--src-prefix={}", src_prefix.display()));
+    }
+
+    for file in files {
+        command.arg(file);
+    }
+
+    command.stdout(::std::process::Stdio::piped());
+    command.stderr(::std::process::Stdio::inherit());
+
+    let mut p = command.spawn().unwrap();
+    p.stdout.take().unwrap()
 }
